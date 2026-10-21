@@ -174,7 +174,7 @@ copy_image() {
 # machine can send one. Keeping that action and running it later is handing an
 # attacker a command that fires whenever somebody clicks a row, so it is never
 # kept. What is kept is at most an absolute path to an image, taken out of the
-# action and opened by argument rather than by shell.
+# action and opened by argument rather than by shell, and the web address below.
 #
 # Two shapes arrive here. Omarchy now sends the action as `omarchy-exec-argv`,
 # a JSON vector whose elements are already discrete arguments, so a candidate
@@ -202,6 +202,26 @@ preview_source() {
   printf '%s' "$action" | grep -oiE "(file://)?/[^\"' ]*\.(jpe?g|png|webp|gif)" | head -n 1
 }
 
+# The web page the action would have opened, if it opened one. Same rule as the
+# picture: the command is discarded and only the address is kept, as data. It
+# has to be http(s), so a click can bring a page up in the browser but never
+# hand a file:// or some other scheme to whatever handles it, and it carries no
+# whitespace, quotes or control characters.
+link_source() {
+  local action=$1
+
+  if [[ $action == \[* ]]; then
+    printf '%s' "$action" | jq -r --arg re '^https?://[^\s\x00-\x1f\x7f"'"'"'<>]+$' '
+      if type == "array" then
+        .[] | select(type == "string") | select(test($re; "i"))
+      else empty end
+    ' 2>/dev/null | head -n 1
+    return
+  fi
+
+  printf '%s' "$action" | grep -oiE "https?://[^[:space:][:cntrl:]\"'<>]+" | head -n 1
+}
+
 # Take one of the service's JSON files into the archive, and print the entry
 # that was added.
 #
@@ -216,7 +236,7 @@ preview_source() {
 # replay the whole archive at both of them.
 ingest_file() {
   local file=$1 announce_existing=${2:-0}
-  local key entry app_icon image_src exec_src icon_copy image_copy file_src preview_copy
+  local key entry app_icon image_src exec_src icon_copy image_copy file_src link_src preview_copy
   key=$(basename -- "$file"); key=${key%.json}
   [[ -n $key ]] || return 0
   if is_dismissed "$key"; then
@@ -258,6 +278,7 @@ ingest_file() {
   # reaches the archive.
   file_src=$(preview_source "$exec_src")
   file_src=${file_src#file://}
+  link_src=$(link_source "$exec_src")
 
   preview_copy=""
   if (( previews )) && [[ -n $file_src ]]; then
@@ -270,6 +291,7 @@ ingest_file() {
     --arg image "$image_copy" \
     --arg preview "$preview_copy" \
     --arg file "$file_src" \
+    --arg link "$link_src" \
     '{
        key: $key,
        app: (.app // ""),
@@ -279,6 +301,7 @@ ingest_file() {
        image: $image,
        preview: $preview,
        file: $file,
+       link: $link,
        glyph: (.glyph // ""),
        urgency: (.urgency // 1),
        timestamp: (.timestamp // 0)
