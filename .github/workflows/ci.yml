@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test style
+        run: |
+          node - <<'EOF'
+          const fs = require("node:fs")
+          const path = require("node:path")
+
+          const files = fs.readdirSync("tests").filter((f) => f.endsWith(".js")).sort()
+          const problems = []
+
+          for (const file of files) {
+            const full = path.join("tests", file)
+            const text = fs.readFileSync(full, "utf8")
+            if (file.endsWith(".test.js") && text.split("\n")[0].trim() !== "// node --test") {
+              problems.push(`${full}:1: first line must be "// node --test"`)
+            }
+            let line = 1
+            let state = "code"
+            for (let i = 0; i < text.length; i++) {
+              const c = text[i]
+              const next = text[i + 1]
+              if (c === "\n") {
+                line++
+                if (state === "line" || state === "sq") state = "code"
+                continue
+              }
+              if (state === "line") continue
+              if (state === "block") {
+                if (c === "*" && next === "/") { state = "code"; i++ }
+                continue
+              }
+              if (state === "dq" || state === "bt") {
+                if (c === "\\") i++
+                else if (c === (state === "dq" ? '"' : "`")) state = "code"
+                continue
+              }
+              if (state === "sq") {
+                if (c === "\\") i++
+                else if (c === "'") state = "code"
+                continue
+              }
+              if (c === "/" && next === "/") { state = "line"; i++; continue }
+              if (c === "/" && next === "*") { state = "block"; i++; continue }
+              if (c === '"') { state = "dq"; continue }
+              if (c === "`") { state = "bt"; continue }
+              if (c === "'") { problems.push(`${full}:${line}: single-quoted string, use double quotes`); state = "sq"; continue }
+              if (c === ";") problems.push(`${full}:${line}: semicolon, this repo omits them`)
+            }
+          }
+
+          if (problems.length) {
+            console.log(problems.join("\n"))
+            process.exit(1)
+          }
+          console.log(`${files.length} files under tests/ match the style`)
+          EOF
+      - name: Bash syntax
+        run: bash -n bin/notification-center
+      - name: ShellCheck
+        run: shellcheck bin/notification-center
+      - name: Tests
+        run: node --test
