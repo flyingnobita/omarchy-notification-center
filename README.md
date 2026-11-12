@@ -85,6 +85,10 @@ rm -rf ~/.local/state/omarchy-notification-center
 
 ## The command line
 
+The plugin is served from `~/.config/omarchy/plugins/jankeesvw.notification-center/`,
+and that directory is where everything this README names lives on disk:
+`Store.js`, `Service.qml`, `Panel.qml`, `bin/` and `lib/` are all inside it.
+
 `bin/notification-center` is the storage side, and how you search further back
 than the panel loads:
 
@@ -100,7 +104,8 @@ prints JSON.
 
 ```bash
 # everything Slack sent you last week, as text
-notification-center list 2000 | jq -r '.[] | select(.app == "Slack") | "\(.summary): \(.body)"'
+~/.config/omarchy/plugins/jankeesvw.notification-center/bin/notification-center list 2000 \
+  | jq -r '.[] | select(.app == "Slack") | "\(.summary): \(.body)"'
 ```
 
 The panel opens over IPC, which is how you bind it to a key:
