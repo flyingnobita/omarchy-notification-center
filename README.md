@@ -114,6 +114,20 @@ The panel opens over IPC, which is how you bind it to a key:
 omarchy-shell jankeesvw.notification-center toggle
 ```
 
+Opening the panel counts as reading it: it records the time in `lastSeen` and
+the unread dot goes away. To see what the panel is showing without that, ask
+the installed plugin over the same socket, which writes nothing:
+
+```bash
+omarchy-shell jankeesvw.notification-center.test state
+# {"entries":12,"newest":"Screenshot saved","unread":3,"watching":true,"loaded":true,"lastSeen":1794112049715,"dnd":false}
+```
+
+`entries` is how many there are and `newest` is the one on top, `watching`
+and `loaded` say whether the watcher came up and the archive was read, and
+`dnd` is the bell in the header. `omarchy plugin list` says whether the
+installed copy is enabled, without reinstalling it to find out.
+
 ## Tests
 
 The Slack matching has unit tests. Run them from the plugin directory with
